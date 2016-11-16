@@ -36,10 +36,9 @@ import logging
 from django.db import models
 from django.conf import settings
 from datetime import datetime
-from os.path import join, exists, dirname, abspath
 from collections import defaultdict
-from django.db import transaction, connection
 from django.utils.encoding import smart_unicode
+from django.db import transaction, connection
 
 from djangotasks import signals
 
@@ -271,6 +270,9 @@ class TaskManager(models.Manager):
         # First cancel any task that needs to be cancelled...
         tasks = self.filter(status="requested_cancel",
                             archived=False)
+
+        LOG.info("Tasks: %d", tasks.count())
+
         for task in tasks:
             LOG.info("Cancelling task %d...", task.pk)
             task._do_cancel()

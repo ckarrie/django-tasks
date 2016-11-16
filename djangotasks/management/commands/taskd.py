@@ -60,8 +60,9 @@ class Daemon:
         self.pidfile = pidfile
 
     def daemonize(self):
-        sys.stdout.flush()
-        sys.stderr.flush()
+        sys.stderr.write("Daemonizing....\n")
+        #sys.stdout.flush()
+        #sys.stderr.flush()
         # TODO: give feedback to the user, on whether the daemon was started successfully,
         # i.e. verify that the daemon was started correctly.
         # This needs to be done in the *parent* process:
@@ -71,9 +72,10 @@ class Daemon:
         # then wait another few seconds that the pid actually continues existing: if it doesn't continue existing, 
         # it would simply print an error.       
         become_daemon()
-
+        sys.stderr.write("After become_daemon\n")
         atexit.register(self._delpid)
         self._setpid()
+        sys.stderr.write(self.pidfile)
 
     def _delpid(self):
         try:
@@ -102,7 +104,7 @@ class Daemon:
             except:
                 sys.stderr.write("pidfile %s already exists, but daemon is not running. Delete pidfile and retry.\n" % self.pidfile)
             sys.exit(1)
-    
+
         self.daemonize()
         self.run()
 
@@ -133,9 +135,11 @@ class Daemon:
     def run(self):
         pass
 
+
 class TaskDaemon(Daemon):
     def run(self):
-        from djangotasks.models import Task
+        from django.apps import apps
+        Task = apps.get_model('djangotasks.Task')
         for handler in list(logging.getLogger().handlers):
             logging.getLogger().removeHandler(handler)
 
@@ -147,9 +151,21 @@ class TaskDaemon(Daemon):
         else:
             logging.basicConfig(level=logging.INFO)
 
+        sys.stderr.write("Aasdadadasda")
+
+        logging.info("Task.objects.count(): %d", Task.objects.count())
         Task.objects.scheduler()
 
+
 class Command(BaseCommand):
+    can_import_settings = True
+
+    def add_arguments(self, parser):
+        parser.add_argument(
+            'args', metavar='app_label', nargs='*',
+            help='use start|stop|restart|run',
+        )
+
     def handle(self, *args, **options):
         if len(args) == 1 and args[0] in ['start', 'stop', 'restart', 'run']:
 
@@ -163,6 +179,9 @@ class Command(BaseCommand):
                 
             daemon = TaskDaemon(os.path.join(os.getenv('TEMP') if (os.name == 'nt') else '/tmp',
                                              'django-taskd.pid'))
-            getattr(daemon, args[0])()
+
+            print "before daemon"
+            d = getattr(daemon, args[0])()
+            print "after daemon", args[0], d.pidfile
         else:
             return "Usage: %s %s start|stop|restart|run\n" % (sys.argv[0], sys.argv[1])
