@@ -33,8 +33,7 @@ from signal import SIGTERM
 
 
 from django.core.management.base import BaseCommand
-
-from django.utils.daemonize import become_daemon
+from djangotasks.compat import become_daemon
 
 LOG_FORMAT = '%(asctime)s %(process)d:%(name)s %(levelname)s: %(message)s'
 LOG_DATEFMT = '%Y-%m-%d %H:%M:%S %Z'
@@ -54,6 +53,7 @@ def _log_file():
 # see http://www.jejik.com/articles/2007/02/a_simple_unix_linux_daemon_in_python/#c6
 # 
 #
+
 
 class Daemon:
     def __init__(self, pidfile):
