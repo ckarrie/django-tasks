@@ -34,6 +34,7 @@ import subprocess
 import logging
 
 from django.db import models
+from django.apps import apps
 from django.conf import settings
 from datetime import datetime
 from os.path import join, exists, dirname, abspath
@@ -45,11 +46,13 @@ from djangotasks import signals
 
 LOG = logging.getLogger("djangotasks")
 
+
 def _get_model_name(model_class):
     return smart_unicode(model_class._meta)
 
+
 def _get_model_class(model_name):
-    model = models.get_model(*model_name.split("."))
+    model = apps.get_model(*model_name.split("."))
     if model == None:
         raise Exception("%s is not a registered model, cannot use this task" % model_name)
     return model

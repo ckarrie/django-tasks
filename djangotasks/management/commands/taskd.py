@@ -149,7 +149,14 @@ class TaskDaemon(Daemon):
 
         Task.objects.scheduler()
 
+
 class Command(BaseCommand):
+    def add_arguments(self, parser):
+        parser.add_argument(
+            'args', metavar='app_label', nargs='*',
+            help = 'use start|stop|restart|run',
+        )
+
     def handle(self, *args, **options):
         if len(args) == 1 and args[0] in ['start', 'stop', 'restart', 'run']:
 
