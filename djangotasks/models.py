@@ -40,7 +40,7 @@ from datetime import datetime
 from os.path import join, exists, dirname, abspath
 from collections import defaultdict
 from django.db import transaction, connection
-from django.utils.encoding import smart_unicode
+from django.utils.encoding import smart_str
 
 from djangotasks import signals
 
@@ -48,7 +48,7 @@ LOG = logging.getLogger("djangotasks")
 
 
 def _get_model_name(model_class):
-    return smart_unicode(model_class._meta)
+    return smart_str(model_class._meta)
 
 
 def _get_model_class(model_name):
@@ -81,19 +81,19 @@ class TaskManager(models.Manager):
         import inspect
         if not inspect.ismethod(method):
             raise Exception(repr(method) + " is not a class method")
-        model = _get_model_name(method.im_class)
+        model = _get_model_name(method.__self__.__class__)
         if len(required_methods) == 1 and required_methods[0].__class__ in [list, tuple]:
             required_methods = required_methods[0]
 
         for required_method in required_methods:
             if not inspect.ismethod(required_method):
                 raise Exception(repr(required_method) + " is not a class method")
-            if required_method.im_func.__name__ not in [method_name for method_name, _, _ in TaskManager.DEFINED_TASKS[model]]:
+            if required_method.__func__.__name__ not in [method_name for method_name, _, _ in TaskManager.DEFINED_TASKS[model]]:
                 raise Exception(repr(required_method) + " is not registered as a task method for model " + model)
             
-        TaskManager.DEFINED_TASKS[model].append((method.im_func.__name__, 
+        TaskManager.DEFINED_TASKS[model].append((method.__func__.__name__, 
                                                  documentation if documentation else '',
-                                                 ','.join(required_method.im_func.__name__ 
+                                                 ','.join(required_method.__func__.__name__ 
                                                           for required_method in required_methods)))
 
     def task_for_object(self, the_class, object_id, method, status_in=None):
@@ -105,7 +105,7 @@ class TaskManager(models.Manager):
                    if taskdef[0] == method][0]
 
         if not status_in:
-            status_in = dict(STATUS_TABLE).keys()
+            status_in = list(dict(STATUS_TABLE).keys())
             
         from django.core.exceptions import MultipleObjectsReturned
         try:
@@ -114,7 +114,7 @@ class TaskManager(models.Manager):
                                                object_id=str(object_id),
                                                status__in=status_in,
                                                archived=False)
-        except MultipleObjectsReturned, e:
+        except MultipleObjectsReturned as e:
             LOG.exception("Integrity error: multiple non-archived tasks, should not occur. Attempting recovery by archiving all tasks for this object and method, and recreating them")
             objects = self.filter(model=model, 
                                   method=method,
@@ -143,7 +143,7 @@ class TaskManager(models.Manager):
         function_name = _to_function_name(function)
         function_task = FunctionTask.objects.get_or_create(function_name=function_name)
         return self.task_for_object(FunctionTask, function_name,
-                                    FunctionTask.run_function_task.func_name)
+                                    FunctionTask.run_function_task.__name__)
 
     def run_task(self, pk):
         task = self.get(pk=pk)
@@ -329,7 +329,7 @@ class Task(models.Model):
     archived = models.BooleanField(default=False) # for history
 
     def __unicode__(self):
-        return u'%s - %s.%s.%s' % (self.id, self.model.split('.')[-1], self.object_id, self.method)
+        return '%s - %s.%s.%s' % (self.id, self.model.split('.')[-1], self.object_id, self.method)
 
     def status_string(self):
         return dict(STATUS_TABLE)[self.status]
@@ -417,21 +417,21 @@ class Task(models.Model):
 
                 returncode = proc.returncode
 
-            except Exception, e:
+            except Exception as e:
                 LOG.exception("Exception in calling thread for task %s", self.pk)
                 import traceback
                 stack = traceback.format_exc()
                 try:
                     Task.objects.append_log(self.pk, "Exception in calling thread: " + str(e) + "\n" + stack)
-                except Exception, ee:
+                except Exception as ee:
                     LOG.exception("Second exception while trying to save the first exception to the log for task %s!", self.pk)
 
             Task.objects.mark_finished(self.pk,
                                        "successful" if returncode == 0 else "unsuccessful",
                                        "running")
             
-        import thread
-        thread.start_new_thread(exec_thread, ())
+        import _thread
+        _thread.start_new_thread(exec_thread, ())
 
     def _do_cancel(self):
         if self.status != "requested_cancel":
@@ -448,7 +448,7 @@ class Task(models.Model):
                 
             import signal
             os.kill(self.pid, signal.SIGTERM)
-        except OSError, e:
+        except OSError as e:
             # could happen if the process *just finished*. Fail cleanly
             raise Exception('Failed to cancel task model=%s, method=%s, object=%s: %s' % (self.model, self.method, self.object_id, str(e)))
         finally:
@@ -530,7 +530,7 @@ class FunctionTask(models.Model):
         function = _to_function(self.function_name)
         return function()
 
-Task.objects.register_task(FunctionTask.run_function_task, "Run a function task")
+#Task.objects.register_task(FunctionTask.run_function_task, "Run a function task")
 
 
 if 'DJANGOTASK_DAEMON_THREAD' in dir(settings) and settings.DJANGOTASK_DAEMON_THREAD:
@@ -538,5 +538,5 @@ if 'DJANGOTASK_DAEMON_THREAD' in dir(settings) and settings.DJANGOTASK_DAEMON_TH
     logging.getLogger().addHandler(logging.StreamHandler())
     logging.getLogger().setLevel(logging.INFO)
 
-    import thread
-    thread.start_new_thread(Task.objects.scheduler, ())
+    import _thread
+    _thread.start_new_thread(Task.objects.scheduler, ())

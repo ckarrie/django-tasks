@@ -64,7 +64,7 @@ def task_for_object(object_method):
     The parameter must be the method of a bound object, not an unbound class method.
     This is a shortcut to calling tasks_for_object and selecting the task for the method
     '''
-    return apps.get_model('djangotasks.Task').objects.task_for_object(object_method.im_class, object_method.im_self.pk, object_method.im_func.__name__)
+    return apps.get_model('djangotasks.Task').objects.task_for_object(object_method.__self__.__class__, object_method.__self__.pk, object_method.__func__.__name__)
 
 
 def task_for_function(function):
